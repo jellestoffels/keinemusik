@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agency Tour Events</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            background-color: #111827; /* gray-900 */
+            color: #e5e7eb; /* gray-200 */
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        .leaflet-container {
+            height: 100%;
+            width: 100%;
+            border-radius: 0.75rem;
+            z-index: 10;
+            background: #1f2937; /* Match dark theme */
+        }
+        /* Custom scrollbar for table - Dark Mode */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1f2937;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        
+        /* Map Popup Dark Mode overrides */
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background: #1f2937;
+            color: #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+        }
+        .leaflet-container a.leaflet-popup-close-button {
+            color: #9ca3af;
+        }
+        
+        /* Checkbox Styles */
+        .form-checkbox {
+            appearance: none;
+            background-color: #374151;
+            margin: 0;
+            font: inherit;
+            color: currentColor;
+            width: 1.15em;
+            height: 1.15em;
+            border: 1px solid #4b5563;
+            border-radius: 0.25em;
+            display: grid;
+            place-content: center;
+        }
+        .form-checkbox::before {
+            content: "";
+            width: 0.65em;
+            height: 0.65em;
+            transform: scale(0);
+            transition: 120ms transform ease-in-out;
+            box-shadow: inset 1em 1em #a855f7; /* Purple-500 */
+            transform-origin: center;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+        }
+        .form-checkbox:checked::before {
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Fallback data
+        const FALLBACK_DATA = [
+            {
+                "id": 3628050,
+                "date": { "value": "2025-12-05T00:00:00Z", "dayName": "Fri", "monthName": "Dec", "day": 5, "year": 2025 },
+                "performanceTime": "00:30 - 03:00 Keinemusik",
+                "eventName": "Keinemusik @ Yas Gateway Park - Abu Dhabi - AE",
+                "capacity": 21250,
+                "status": { "phase": "D" },
+                "artist": { "name": "&ME", "url": "https://keinemusik.com" },
+                "venue": { "name": "Yas Island", "city": "Abu Dhabi", "country": "United Arab Emirates", "latLng": [24.4958385, 54.6040121] },
+                "tickets": { "url": "https://famfam.app/homeStack/ShowDetail?eventId=evt_e404bbd0-32a4-412d-8ec7-204c519904f8" }
+            },
+            {
+                "id": 3628052,
+                "date": { "value": "2025-12-05T00:00:00Z", "dayName": "Fri", "monthName": "Dec", "day": 5, "year": 2025 },
+                "performanceTime": "00:30 - 03:00 Keinemusik",
+                "eventName": "Keinemusik @ Yas Gateway Park - Abu Dhabi - AE",
+                "capacity": 20000,
+                "status": { "phase": "D" },
+                "artist": { "name": "Adam Port", "url": "https://keinemusik.com" },
+                "venue": { "name": "Yas Island", "city": "Abu Dhabi", "country": "United Arab Emirates", "latLng": [24.4958385, 54.6040121] },
+                "tickets": { "url": "#" }
+            },
+            {
+                "id": 3628055,
+                "date": { "value": "2025-12-05T00:00:00Z", "dayName": "Fri", "monthName": "Dec", "day": 5, "year": 2025 },
+                "performanceTime": "00:30 - 03:00 Keinemusik",
+                "eventName": "Keinemusik @ Yas Gateway Park - Abu Dhabi - AE",
+                "capacity": 20000,
+                "status": { "phase": "D" },
+                "artist": { "name": "Rampa", "url": null }, // Should be hidden
+                "venue": { "name": "Yas Island", "city": "Abu Dhabi", "country": "United Arab Emirates", "latLng": [24.4958385, 54.6040121] },
+                "tickets": { "url": "#" }
+            },
+             {
+                "id": 3687347,
+                "date": { "value": "2025-10-15T00:00:00Z", "dayName": "Wed", "monthName": "Oct", "day": 15, "year": 2025 },
+                "performanceTime": "22:00 - 04:00",
+                "eventName": "Keinemusik @ Brooklyn Mirage",
+                "capacity": 5000,
+                "status": { "phase": "D" },
+                "artist": { "name": "Keinemusik", "url": "https://keinemusik.com" },
+                "venue": { "name": "Brooklyn Mirage", "city": "New York", "country": "USA", "latLng": [40.7105, -73.9264] },
+                "tickets": { "url": "#" }
+            },
+            {
+                "id": 999999,
+                "date": { "value": "2026-01-01T00:00:00Z", "dayName": "Thu", "monthName": "Jan", "day": 1, "year": 2026 },
+                "performanceTime": "20:00 - 23:00",
+                "eventName": "Residency Opening",
+                "capacity": 3000,
+                "status": { "phase": "O" },
+                "artist": { "name": "Keinemusik", "url": "https://keinemusik.com" },
+                "venue": { "name": "Hï Ibiza", "city": "Ibiza", "country": "Spain", "latLng": [38.8854, 1.4042] },
+                "tickets": { "url": null }
+            }
+        ];
+
+        const App = () => {
+            // New State for Agency Search & Config
+            const [currentAgency, setCurrentAgency] = React.useState('worldwidedancingclub');
+            const [searchInput, setSearchInput] = React.useState('worldwidedancingclub');
+            const [limit, setLimit] = React.useState(100);
+            const [limitInput, setLimitInput] = React.useState(100);
+            
+            const [events, setEvents] = React.useState([]);
+            const [loading, setLoading] = React.useState(true);
+            const [usingFallback, setUsingFallback] = React.useState(false);
+            
+            // Filter States
+            const [availableArtists, setAvailableArtists] = React.useState([]);
+            const [availableStatuses, setAvailableStatuses] = React.useState([]);
+            const [selectedArtists, setSelectedArtists] = React.useState(new Set());
+            const [selectedStatuses, setSelectedStatuses] = React.useState(new Set());
+            const [showFilters, setShowFilters] = React.useState(false);
+
+            const mapRef = React.useRef(null);
+            const mapInstanceRef = React.useRef(null);
+            const markersRef = React.useRef([]);
+
+            // Helper: Group events by Date + Venue
+            const processEvents = (rawData) => {
+                const groups = {};
+                const artistsSet = new Set();
+                const statusSet = new Set();
+
+                rawData.forEach(event => {
+                    // Safety check: ensure event has necessary data
+                    if (!event.date) return;
+
+                    // FILTER: Check if artist exists and has a non-null URL
+                    const hasValidArtist = event.artist && event.artist.name && event.artist.url;
+
+                    if (hasValidArtist) artistsSet.add(event.artist.name);
+                    if (event.status?.phase) statusSet.add(event.status.phase);
+
+                    const dateKey = event.date.value;
+                    const venueKey = event.venue?.id || event.venue?.name || 'unknown';
+                    const uniqueKey = `${dateKey}-${venueKey}`;
+
+                    if (!groups[uniqueKey]) {
+                        groups[uniqueKey] = {
+                            ...event,
+                            // Only add artist to the list if they have a valid URL
+                            allArtists: hasValidArtist ? [event.artist.name] : []
+                        };
+                    } else {
+                        const artistName = event.artist?.name;
+                        // Only add artist to the list if they have a valid URL
+                        if (hasValidArtist && !groups[uniqueKey].allArtists.includes(artistName)) {
+                            groups[uniqueKey].allArtists.push(artistName);
+                        }
+                    }
+                });
+
+                setAvailableArtists(Array.from(artistsSet).sort());
+                setAvailableStatuses(Array.from(statusSet).sort());
+                
+                setSelectedArtists(new Set());
+                setSelectedStatuses(new Set());
+
+                return Object.values(groups).sort((a, b) => 
+                    new Date(a.date.value) - new Date(b.date.value)
+                );
+            };
+
+            const getStatusColor = (phase) => {
+                switch(phase) {
+                    case 'D': return 'bg-green-900/50 text-green-300 border-green-800'; 
+                    case 'C': return 'bg-red-900/50 text-red-300 border-red-800'; 
+                    case 'O': return 'bg-orange-900/50 text-orange-300 border-orange-800'; 
+                    default: return 'bg-gray-700 text-gray-300 border-gray-600';
+                }
+            };
+
+            const getStatusLabel = (phase) => {
+                switch(phase) {
+                    case 'D': return 'Confirmed';
+                    case 'C': return 'Cancelled';
+                    case 'O': return 'Option';
+                    default: return phase;
+                }
+            };
+
+            const toggleArtist = (artist) => {
+                const newSet = new Set(selectedArtists);
+                if (newSet.has(artist)) newSet.delete(artist);
+                else newSet.add(artist);
+                setSelectedArtists(newSet);
+            };
+
+            const toggleStatus = (status) => {
+                const newSet = new Set(selectedStatuses);
+                if (newSet.has(status)) newSet.delete(status);
+                else newSet.add(status);
+                setSelectedStatuses(newSet);
+            };
+
+            const handleSearchSubmit = (e) => {
+                e.preventDefault();
+                // Update both agency and limit when "Go" is pressed
+                if (searchInput.trim()) {
+                    setCurrentAgency(searchInput.trim());
+                    setLimit(limitInput);
+                }
+            };
+
+            // Filtered Data Computation
+            const filteredEvents = React.useMemo(() => {
+                return events.filter(event => {
+                    const statusMatch = selectedStatuses.size === 0 || selectedStatuses.has(event.status.phase);
+                    
+                    // Note: event.allArtists now only contains artists with URLs.
+                    // If an event has NO artists with URLs, allArtists will be empty.
+                    // If you want to HIDE events with 0 valid artists, you could uncomment the line below:
+                    // if (event.allArtists.length === 0) return false;
+
+                    const artistMatch = selectedArtists.size === 0 || event.allArtists.some(a => selectedArtists.has(a));
+                    return statusMatch && artistMatch;
+                });
+            }, [events, selectedArtists, selectedStatuses]);
+
+
+            // Fetch Data
+            React.useEffect(() => {
+                const fetchData = async () => {
+                    setLoading(true);
+                    setUsingFallback(false);
+                    try {
+                        // Use limit state in URL
+                        const url = `https://client.systemonesoftware.com/api/v1/shows/${currentAgency}?lang=en-GB&per_page=${limit}&upcoming_limit=730&cancelled=false&page=1`;
+                        const response = await fetch(url);
+                        
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        
+                        const json = await response.json();
+                        setEvents(processEvents(json.data || []));
+                    } catch (err) {
+                        console.warn("API Fetch failed, using fallback:", err);
+                        if (currentAgency === 'worldwidedancingclub') {
+                             setEvents(processEvents(FALLBACK_DATA));
+                             setUsingFallback(true);
+                        } else {
+                            setEvents([]);
+                        }
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                fetchData();
+            }, [currentAgency, limit]); // Re-run when agency or limit changes
+
+            // Initialize Map
+            React.useEffect(() => {
+                // If loading, do nothing (wait for DOM)
+                if (loading) return;
+                
+                // If the DOM element isn't there yet, wait
+                if (!mapRef.current) return;
+
+                // FIX: Check if map instance exists AND matches current container
+                // If map container (div) was removed/re-added by React (due to loading state),
+                // the old Leaflet instance is broken.
+                if (mapInstanceRef.current) {
+                     const container = mapInstanceRef.current.getContainer();
+                     // If the instance is bound to a different element than current ref, destroy it
+                     if (container !== mapRef.current) {
+                        mapInstanceRef.current.remove();
+                        mapInstanceRef.current = null;
+                     }
+                }
+
+                // Create Map if needed
+                if (!mapInstanceRef.current) {
+                    mapInstanceRef.current = L.map(mapRef.current).setView([25, 10], 2);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                        attribution: '&copy; OpenStreetMap &copy; CARTO',
+                        subdomains: 'abcd',
+                        maxZoom: 20
+                    }).addTo(mapInstanceRef.current);
+                }
+
+                // Clean markers
+                markersRef.current.forEach(marker => marker.remove());
+                markersRef.current = [];
+
+                const bounds = L.latLngBounds();
+                let hasValidCoords = false;
+
+                filteredEvents.forEach(event => {
+                    if (event.venue && event.venue.latLng) {
+                        const [lat, lng] = event.venue.latLng;
+                        // Join whatever artists remain (those with URLs)
+                        const artistsList = event.allArtists.length > 0 ? event.allArtists.join(', ') : 'Various Artists';
+
+                        const popupContent = `
+                            <div class="p-2 min-w-[200px]">
+                                <h3 class="font-bold text-sm mb-1 text-white">${event.eventName || 'Event'}</h3>
+                                <div class="text-xs text-gray-400 mb-2">
+                                    ${event.date.dayName}, ${event.date.day} ${event.date.monthName} ${event.date.year}
+                                </div>
+                                <div class="text-xs font-medium text-purple-400 mb-1">
+                                    ${artistsList}
+                                </div>
+                                <div class="text-xs text-gray-300">
+                                    ${event.venue.name} • ${event.venue.city}
+                                </div>
+                            </div>
+                        `;
+
+                        const marker = L.marker([lat, lng])
+                            .addTo(mapInstanceRef.current)
+                            .bindPopup(popupContent);
+                        
+                        markersRef.current.push(marker);
+                        bounds.extend([lat, lng]);
+                        hasValidCoords = true;
+                    }
+                });
+
+                if (hasValidCoords) {
+                    mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+                }
+                
+                // Trigger a resize invalidation to ensure tiles load if container size changed
+                mapInstanceRef.current.invalidateSize();
+
+            }, [filteredEvents, loading]); // Depend on loading so it re-runs when loading finishes
+
+            React.useEffect(() => {
+                lucide.createIcons();
+            }, [filteredEvents, loading, showFilters]);
+
+
+            return (
+                <div className="min-h-screen pb-12 bg-gray-900 text-gray-100">
+                    <header className="bg-gray-800/50 backdrop-blur-md border-b border-gray-700 sticky top-0 z-20 shadow-lg">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+                            
+                            <div className="flex items-center gap-4 flex-1">
+                                <div className="p-2 bg-purple-500/10 rounded-lg shrink-0">
+                                    <i data-lucide="music" className="text-purple-400 h-6 w-6"></i>
+                                </div>
+                                
+                                {/* Search Form */}
+                                <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 w-full max-w-lg">
+                                    <div className="relative w-full">
+                                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                            <i data-lucide="search" className="w-4 h-4 text-gray-500"></i>
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            value={searchInput}
+                                            onChange={(e) => setSearchInput(e.target.value)}
+                                            className="bg-gray-800 border border-gray-600 text-gray-200 text-sm rounded-l-lg focus:ring-purple-500 focus:border-purple-500 block w-full pl-10 p-2.5 placeholder-gray-500" 
+                                            placeholder="Agency ID" 
+                                        />
+                                    </div>
+                                    <div className="relative w-32">
+                                        <input 
+                                            type="number" 
+                                            min="1"
+                                            max="500"
+                                            value={limitInput}
+                                            onChange={(e) => setLimitInput(parseInt(e.target.value) || 100)}
+                                            className="bg-gray-800 border-y border-r border-gray-600 text-gray-200 text-sm rounded-r-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5 text-center"
+                                            placeholder="Max"
+                                            title="Max number of shows"
+                                        />
+                                        <div className="absolute inset-y-0 right-8 flex items-center pointer-events-none">
+                                            <span className="text-xs text-gray-500">max</span>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        type="submit" 
+                                        className="text-white bg-purple-600 hover:bg-purple-700 font-medium rounded-lg text-sm px-4 py-2.5 transition-colors ml-1"
+                                    >
+                                        Go
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div className="flex items-center gap-4 shrink-0">
+                                <button 
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium ${showFilters ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'}`}
+                                >
+                                    <i data-lucide="filter" className="h-4 w-4"></i>
+                                    <span className="hidden sm:inline">Filters</span>
+                                </button>
+                                <div className="hidden sm:block text-sm font-medium text-gray-400 bg-gray-800 px-3 py-1.5 rounded-full border border-gray-700">
+                                    {filteredEvents.length} Shows
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    {usingFallback && (
+                        <div className="bg-yellow-900/20 border-b border-yellow-900/50 px-4 py-3">
+                            <div className="max-w-7xl mx-auto flex items-center gap-3 text-yellow-500 text-sm">
+                                <i data-lucide="alert-circle" className="h-4 w-4"></i>
+                                <p><strong>Demo Mode:</strong> Showing cached sample data for <em>{currentAgency}</em> (CORS restriction).</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {!loading && events.length === 0 && !usingFallback && (
+                         <div className="bg-red-900/20 border-b border-red-900/50 px-4 py-3">
+                            <div className="max-w-7xl mx-auto flex items-center gap-3 text-red-400 text-sm">
+                                <i data-lucide="x-circle" className="h-4 w-4"></i>
+                                <p>No events found for agency "<strong>{currentAgency}</strong>". Please check the ID and try again.</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+                        
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center py-20">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mb-4"></div>
+                                <p className="text-gray-400">Fetching schedule for {currentAgency}...</p>
+                            </div>
+                        ) : (
+                            <>
+                                {showFilters && (
+                                    <div className="bg-gray-800 rounded-xl shadow-lg border border-gray-700 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+                                        <div className="p-4 border-b border-gray-700 bg-gray-800/50 flex justify-between items-center">
+                                            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Filter Controls</h3>
+                                            {(selectedArtists.size > 0 || selectedStatuses.size > 0) && (
+                                                <button 
+                                                    onClick={() => {setSelectedArtists(new Set()); setSelectedStatuses(new Set());}}
+                                                    className="text-xs text-purple-400 hover:text-purple-300 hover:underline"
+                                                >
+                                                    Reset All
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-8">
+                                            
+                                            <div className="col-span-1 space-y-3">
+                                                <h4 className="text-sm font-medium text-white flex items-center gap-2">
+                                                    <i data-lucide="activity" className="h-4 w-4 text-gray-500"></i>
+                                                    Status
+                                                </h4>
+                                                <div className="space-y-2">
+                                                    {availableStatuses.map(status => (
+                                                        <label key={status} className="flex items-center gap-3 cursor-pointer group">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                className="form-checkbox text-purple-600 rounded bg-gray-700 border-gray-600 focus:ring-purple-500 focus:ring-offset-gray-800"
+                                                                checked={selectedStatuses.has(status)}
+                                                                onChange={() => toggleStatus(status)}
+                                                            />
+                                                            <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getStatusColor(status)} group-hover:opacity-80 transition-opacity`}>
+                                                                {getStatusLabel(status)}
+                                                            </span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="col-span-1 md:col-span-3 space-y-3">
+                                                <h4 className="text-sm font-medium text-white flex items-center gap-2">
+                                                    <i data-lucide="users" className="h-4 w-4 text-gray-500"></i>
+                                                    Lineup & Artists
+                                                </h4>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-h-[160px] overflow-y-auto custom-scrollbar pr-2">
+                                                    {availableArtists.map(artist => (
+                                                        <label key={artist} className="flex items-center gap-2 cursor-pointer group p-1.5 rounded hover:bg-gray-700/50 transition-colors">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                className="form-checkbox text-purple-600 rounded bg-gray-700 border-gray-600 focus:ring-purple-500 focus:ring-offset-gray-800"
+                                                                checked={selectedArtists.has(artist)}
+                                                                onChange={() => toggleArtist(artist)}
+                                                            />
+                                                            <span className="text-sm text-gray-300 group-hover:text-white truncate" title={artist}>
+                                                                {artist}
+                                                            </span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700 overflow-hidden">
+                                    <div className="h-[450px] w-full relative z-0" ref={mapRef}></div>
+                                </div>
+
+                                <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700 overflow-hidden">
+                                    <div className="overflow-x-auto custom-scrollbar">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-gray-900/50 text-xs uppercase text-gray-400 tracking-wider border-b border-gray-700">
+                                                    <th className="px-6 py-5 font-medium">Date</th>
+                                                    <th className="px-6 py-5 font-medium">Lineup & Event</th>
+                                                    <th className="px-6 py-5 font-medium">Venue</th>
+                                                    <th className="px-6 py-5 font-medium">Location</th>
+                                                    <th className="px-6 py-5 font-medium">Status</th>
+                                                    <th className="px-6 py-5 font-medium text-right">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-700">
+                                                {filteredEvents.length > 0 ? (
+                                                    filteredEvents.map((event) => (
+                                                        <tr key={event.id} className="hover:bg-gray-700/50 transition-colors group">
+                                                            <td className="px-6 py-5 whitespace-nowrap">
+                                                                <div className="flex flex-col items-start">
+                                                                    <span className="font-bold text-2xl text-white leading-none">
+                                                                        {event.date.day}
+                                                                    </span>
+                                                                    <div className="flex gap-1.5 items-center mt-1">
+                                                                        <span className="text-xs font-bold uppercase text-purple-400 tracking-wide">
+                                                                            {event.date.monthName}
+                                                                        </span>
+                                                                        <span className="text-xs text-gray-500">
+                                                                            '{String(event.date.year).slice(2)}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-5">
+                                                                <div className="flex flex-col max-w-[300px]">
+                                                                    <span className="font-semibold text-white text-lg mb-1 block">
+                                                                        {event.allArtists.length > 0 ? event.allArtists.join(', ') : 'Various Artists'}
+                                                                    </span>
+                                                                    <span className="text-sm text-gray-400 flex items-center gap-1.5">
+                                                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-500/50"></span>
+                                                                        {/* SAFELY HANDLE SPLIT */}
+                                                                        {(event.eventName || '').split(' @ ')[0] || 'Unknown Event'}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-5 whitespace-nowrap">
+                                                                <div className="text-sm text-gray-300 font-medium">{event.venue?.name || 'TBA'}</div>
+                                                            </td>
+                                                            <td className="px-6 py-5 whitespace-nowrap">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm text-white">{event.venue?.city}</span>
+                                                                    <span className="text-xs text-gray-500">{event.venue?.country}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-5 whitespace-nowrap">
+                                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(event.status.phase)}`}>
+                                                                    {getStatusLabel(event.status.phase)}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-5 whitespace-nowrap text-right">
+                                                                {event.tickets?.url ? (
+                                                                    <a 
+                                                                        href={event.tickets.url} 
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer"
+                                                                        className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-all shadow-lg shadow-purple-900/20"
+                                                                    >
+                                                                        Tickets <i data-lucide="ticket" className="h-3 w-3"></i>
+                                                                    </a>
+                                                                ) : (
+                                                                    <span className="text-xs text-gray-600 font-medium">Pending</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
+                                                            No events match the selected filters.
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="px-6 py-4 bg-gray-900 border-t border-gray-700 text-xs text-gray-500 flex justify-between items-center">
+                                        <span>Showing {filteredEvents.length} grouped events</span>
+                                        <span>Powered by System One</span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
