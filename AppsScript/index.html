@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html class="dark">
+  <head>
+    <base target="_top">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = { darkMode: 'class' }
+    </script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+      body { font-family: 'Inter', sans-serif; }
+      #map { height: 350px; width: 100%; z-index: 0; }
+      .row-normal { @apply bg-white dark:bg-gray-800; }
+      th { vertical-align: bottom; }
+      td { vertical-align: middle; }
+      .col-nowrap { white-space: nowrap !important; }
+      .col-wrap { white-space: normal !important; min-width: 140px; }
+      
+      #slide-over-bg { transition: opacity 0.3s ease-in-out; }
+      #slide-over-panel { transition: transform 0.3s ease-in-out; }
+      .slide-open #slide-over-bg { opacity: 0.5; pointer-events: auto; }
+      .slide-open #slide-over-panel { transform: translateX(0); }
+      
+      .multiselect-dropdown { position: relative; width: 100%; }
+      .multiselect-btn {
+        text-align: left; width: 100%; background: transparent;
+        padding: 0.25rem 0.25rem; font-size: 0.75rem; line-height: 1.2;
+        cursor: pointer; display: block; min-height: 24px; border-radius: 4px;
+      }
+      .multiselect-btn:hover { background-color: rgba(0,0,0,0.05); }
+      .dark .multiselect-btn:hover { background-color: rgba(255,255,255,0.1); }
+      
+      .multiselect-menu {
+        display: none; position: absolute; top: 100%; left: 0; z-index: 50;
+        background: white; border: 1px solid #d1d5db; border-radius: 0.375rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        max-height: 200px; overflow-y: auto; min-width: 180px; width: max-content;
+      }
+      .dark .multiselect-menu { background: #374151; border-color: #4b5563; color: white; }
+      .multiselect-menu.show { display: block; }
+    </style>
+  </head>
+  <body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-200 overflow-x-hidden">
+
+    <div class="w-full shadow-md border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+      <div class="flex flex-col xl:flex-row items-center justify-between p-4 gap-6">
+        <div class="text-center xl:text-left min-w-max">
+          <h1 class="text-2xl font-bold tracking-tight">Production Dashboard</h1>
+          <p id="app-status" class="text-xs text-blue-600 font-mono mt-1 animate-pulse">Initializing...</p>
+        </div>
+        
+        <div id="artist-tabs-container" class="flex-1 flex flex-wrap justify-center gap-2 w-full">
+           <div class="text-xs text-gray-400 animate-pulse">Loading artists...</div>
+        </div>
+        
+        <div class="flex flex-wrap justify-center xl:justify-end gap-2 items-center min-w-max">
+          <div class="relative" id="logs-container">
+            <button id="logs-btn" class="px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition flex items-center gap-2" title="Recent Logs">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+            </button>
+            <div id="logs-menu" class="hidden absolute top-full right-0 mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-[70] p-0 overflow-hidden">
+               <div class="bg-gray-50 dark:bg-gray-900 px-3 py-2 border-b dark:border-gray-700 font-bold text-xs uppercase tracking-wide">Recent Activity</div>
+               <div id="logs-list" class="max-h-64 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700">
+                  <div class="p-3 text-xs text-gray-500 text-center">Loading logs...</div>
+               </div>
+            </div>
+          </div>
+
+          <div class="relative" id="time-filter-container">
+            <button id="time-filter-btn" class="px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition flex items-center gap-2">
+              <span>Time Period</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="time-filter-menu" class="hidden absolute top-full right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-[60] p-2">
+               <label class="flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
+                 <input type="checkbox" value="future" checked class="time-check mr-2 h-4 w-4 rounded text-indigo-600">
+                 <span class="text-sm">Future Shows</span>
+               </label>
+               <label class="flex items-center p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded cursor-pointer">
+                 <input type="checkbox" value="past" class="time-check mr-2 h-4 w-4 rounded text-indigo-600">
+                 <span class="text-sm">Past Shows</span>
+               </label>
+            </div>
+          </div>
+
+          <div class="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2 hidden xl:block"></div>
+
+          <button onclick="triggerSync()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium shadow transition">
+            Sync
+          </button>
+          
+          <button id="theme-toggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200">
+             Light | Dark
+          </button>
+        </div>
+      </div>
+      <div id="map"></div>
+    </div>
+
+    <div class="w-full p-4">
+      <div class="flex justify-between items-center mb-3">
+        <h2 class="text-lg font-semibold flex items-center gap-2">
+          Shows List
+          <span class="text-xs font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full" id="show-count">...</span>
+        </h2>
+      </div>
+
+      <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700 pb-40">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10 shadow-sm">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap">Date</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-wrap">Artist</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap">Venue</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap">City</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap">Country</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap w-32">Stage Time</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap w-24">Capacity</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap w-24">Setpiece</th>
+              <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap">Files</th>
+              <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap">Actions</th>
+              <th class="px-4 py-3 text-center text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-nowrap">Status</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase w-64">Checklist</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-wrap">Light Designer</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-wrap">Light Operator</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-wrap">Production Manager</th>
+              <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase col-wrap">Sound Engineer</th>
+            </tr>
+          </thead>
+          <tbody id="shows-body" class="divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <tr><td colspan="16" class="px-4 py-8 text-center text-gray-500">Loading data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    <div id="slide-over-container" class="fixed inset-0 z-50 pointer-events-none">
+       <div id="slide-over-bg" class="absolute inset-0 bg-black opacity-0 transition-opacity" onclick="closeSlideOver()"></div>
+       <div id="slide-over-panel" class="absolute top-0 right-0 h-full w-full max-w-md bg-white dark:bg-gray-800 shadow-2xl transform translate-x-full transition-transform flex flex-col pointer-events-auto">
+          <div class="flex items-center justify-between p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+             <h2 class="text-lg font-bold" id="slide-title">Checklist</h2>
+             <button onclick="closeSlideOver()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+             </button>
+          </div>
+          <div class="flex-1 overflow-y-auto p-4" id="slide-content">
+             <div class="text-center text-gray-500 mt-10">Loading items...</div>
+          </div>
+       </div>
+    </div>
+
+    <!-- ORPHAN MODAL -->
+    <div id="orphan-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50">
+       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6">
+          <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Missing Shows Detected</h3>
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
+             The following upcoming shows are in your spreadsheet but are missing from the calendar feeds. They may have been cancelled or rescheduled. Do you want to remove them from your dashboard?
+          </p>
+          <ul id="orphan-list" class="max-h-60 overflow-y-auto mb-4 border border-gray-200 dark:border-gray-700 rounded divide-y divide-gray-200 dark:divide-gray-700">
+          </ul>
+          <div class="flex justify-end gap-3">
+             <button onclick="closeOrphanModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded transition">Keep Them</button>
+             <button onclick="confirmDeleteOrphans()" class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded transition shadow">Delete Selected</button>
+          </div>
+       </div>
+    </div>
+
+    <!-- SYNC LOG MODAL -->
+    <div id="sync-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50">
+       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full p-6 flex flex-col max-h-[80vh]">
+          <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-2">Sync Results</h3>
+          <div id="sync-log-content" class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-3 rounded text-xs font-mono text-gray-700 dark:text-gray-300 whitespace-pre-wrap tracking-tight">
+          </div>
+          <div class="mt-4 flex justify-end">
+             <button onclick="closeSyncModal()" class="px-6 py-2 bg-indigo-600 text-white font-medium rounded hover:bg-indigo-700 transition">Close</button>
+          </div>
+       </div>
+    </div>
+
+    <textarea id="copy-area" style="position: absolute; left: -9999px;"></textarea>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+      let map, markers = [], globalData = {};
+      let selectedArtistTab = "All"; 
+      let selectedTimeFilters = new Set(['future']); 
+      let currentChecklistId = null;
+      let currentShowDate = null;
+      let currentShowRowIndex = null;
+      let currentShowColIndex = null;
+      let globalEmailTemplates = {};
+      let currentChecklistItems = [];
+      let currentOrphans = []; 
+
+      const STATUS_COLORS = {
+         "Option": "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-100",
+         "Confirmed": "bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-100",
+         "To Do": "bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-100",
+         "Waiting": "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900 dark:text-amber-100",
+         "Done": "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900 dark:text-emerald-100",
+         "Cancelled": "bg-gray-500 text-white border-gray-600 dark:bg-gray-700 dark:text-gray-300",
+         "default": "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-700 dark:text-gray-300"
+      };
+
+      const updateStatus = (msg, isError) => {
+        const el = document.getElementById('app-status');
+        el.innerText = msg;
+        el.className = isError ? "text-xs text-red-600 font-bold mt-1" : "text-xs text-green-600 font-mono mt-1";
+      };
+
+      function updateURLState() {
+        const url = new URL(window.location);
+        url.searchParams.set('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        url.searchParams.set('time', Array.from(selectedTimeFilters).join(','));
+        url.searchParams.set('artist', selectedArtistTab);
+        window.history.replaceState({}, '', url);
+      }
+
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('theme') === 'light') { document.documentElement.classList.remove('dark'); } 
+      else { document.documentElement.classList.add('dark'); }
+      
+      const themeBtn = document.getElementById('theme-toggle');
+      themeBtn.addEventListener('click', () => { document.documentElement.classList.toggle('dark'); updateURLState(); });
+      
+      const setupDropdown = (btnId, menuId, containerId) => {
+        const btn = document.getElementById(btnId);
+        const menu = document.getElementById(menuId);
+        if(!btn || !menu) return;
+        btn.addEventListener('click', (e) => { 
+           e.stopPropagation(); 
+           menu.classList.toggle('hidden'); 
+           if (!menu.classList.contains('hidden') && btnId === 'logs-btn') fetchLogs();
+        });
+        menu.addEventListener('click', (e) => e.stopPropagation());
+        document.addEventListener('click', (e) => { if (!e.target.closest('#' + containerId)) menu.classList.add('hidden'); });
+      };
+      setupDropdown('time-filter-btn', 'time-filter-menu', 'time-filter-container');
+      setupDropdown('logs-btn', 'logs-menu', 'logs-container');
+
+      if (urlParams.get('time')) selectedTimeFilters = new Set(urlParams.get('time').split(','));
+      document.querySelectorAll('.time-check').forEach(cb => {
+         cb.checked = selectedTimeFilters.has(cb.value);
+         cb.addEventListener('change', (e) => {
+            if(e.target.checked) selectedTimeFilters.add(e.target.value); else selectedTimeFilters.delete(e.target.value);
+            updateURLState(); renderTable();
+         });
+      });
+      document.addEventListener('click', (e) => { if (!e.target.closest('.multiselect-dropdown')) document.querySelectorAll('.multiselect-menu').forEach(el => el.classList.remove('show')); });
+
+      function initMap() {
+        if(!document.getElementById('map')) return;
+        map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(map);
+      }
+      window.onload = function() { initMap(); loadData(); };
+      
+      function loadData() {
+        updateStatus("Fetching data...");
+        if (typeof google !== 'undefined' && google.script) {
+          google.script.run.withSuccessHandler(initApp).withFailureHandler(err => { updateStatus("Server Error: " + err.message, true); alert("Error: " + err.message); }).getAllData();
+        }
+      }
+      
+      function fetchLogs() {
+         const container = document.getElementById('logs-list');
+         container.innerHTML = '<div class="p-3 text-xs text-gray-500 text-center">Loading...</div>';
+         google.script.run.withSuccessHandler(logs => {
+            container.innerHTML = '';
+            if(logs.length === 0) { container.innerHTML = '<div class="p-3 text-xs text-gray-500 text-center">No logs found.</div>'; return; }
+            logs.forEach(l => {
+               const div = document.createElement('div');
+               div.className = "px-3 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700 transition";
+               div.innerHTML = `<div class="flex justify-between text-gray-400 mb-0.5"><span>${l.date}</span><span class="font-semibold text-gray-600 dark:text-gray-300">${l.type}</span></div><div class="text-gray-800 dark:text-gray-200">${l.desc}</div>`;
+               container.appendChild(div);
+            });
+         }).getRecentLogs();
+      }
+      
+      function triggerSync() {
+        updateStatus("Syncing...");
+        google.script.run
+            .withSuccessHandler((res) => { 
+                updateStatus("Ready", false);
+                
+                // Show Verbose Sync Modal
+                const logContainer = document.getElementById('sync-log-content');
+                logContainer.innerText = res.logs.join('\n');
+                document.getElementById('sync-modal').classList.remove('hidden');
+
+                if (res.orphans && res.orphans.length > 0) {
+                    promptOrphans(res.orphans);
+                }
+            })
+            .withFailureHandler(err => { 
+                updateStatus("Sync Error", true); 
+                alert("Sync Error: " + err.message); 
+            })
+            .syncApiData(true); 
+      }
+      
+      function closeSyncModal() {
+         document.getElementById('sync-modal').classList.add('hidden');
+         loadData(); // Reload UI to show any changes
+      }
+
+      function promptOrphans(orphans) {
+         currentOrphans = orphans;
+         const list = document.getElementById('orphan-list');
+         list.innerHTML = '';
+         orphans.forEach((o, i) => {
+            const li = document.createElement('li');
+            li.className = "p-3 flex items-center gap-3";
+            li.innerHTML = `
+               <input type="checkbox" id="orphan-${i}" value="${i}" checked class="h-4 w-4 text-red-600 rounded border-gray-300 cursor-pointer">
+               <label for="orphan-${i}" class="text-sm text-gray-800 dark:text-gray-200 cursor-pointer w-full">
+                  <strong>${o.date}</strong> — ${o.name}
+               </label>
+            `;
+            list.appendChild(li);
+         });
+         document.getElementById('orphan-modal').classList.remove('hidden');
+      }
+
+      function closeOrphanModal() {
+         document.getElementById('orphan-modal').classList.add('hidden');
+         loadData();
+      }
+
+      function confirmDeleteOrphans() {
+         const checkboxes = document.querySelectorAll('#orphan-list input[type="checkbox"]:checked');
+         const toDelete = Array.from(checkboxes).map(cb => currentOrphans[cb.value]);
+         
+         if (toDelete.length === 0) {
+            closeOrphanModal();
+            return;
+         }
+
+         document.getElementById('orphan-modal').classList.add('hidden');
+         updateStatus("Deleting cancelled shows...");
+         
+         google.script.run
+           .withSuccessHandler(() => {
+               updateStatus("Ready", false);
+               loadData();
+           })
+           .withFailureHandler(err => {
+               alert("Error deleting shows: " + err.message);
+               loadData();
+           })
+           .deleteShows(toDelete);
+      }
+
+      function initApp(data) {
+        if(data.error) { updateStatus(data.error, true); alert(data.error); return; }
+        try {
+          updateStatus("Rendering...", false);
+          globalData = data;
+          globalEmailTemplates = data.emailTemplates || {};
+          const allArtists = ["All", ...(data.artistOptions || []).filter(a => a !== "Reznik")];
+          const tabsContainer = document.getElementById('artist-tabs-container');
+          tabsContainer.innerHTML = '';
+          if(urlParams.get('artist')) selectedArtistTab = urlParams.get('artist');
+
+          const baseClasses = "px-4 py-2 rounded-lg text-sm font-medium border shadow-sm transition-all duration-200 whitespace-nowrap";
+          const activeClasses = "bg-indigo-600 border-indigo-600 text-white ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-gray-900";
+          const inactiveClasses = "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600";
+          
+          allArtists.forEach(art => {
+             const btn = document.createElement('button');
+             const isActive = selectedArtistTab === art;
+             btn.className = `${baseClasses} ${isActive ? activeClasses : inactiveClasses} artist-tab-btn`;
+             btn.innerText = art;
+             btn.onclick = () => {
+                selectedArtistTab = art;
+                document.querySelectorAll('.artist-tab-btn').forEach(b => { b.className = `${baseClasses} ${inactiveClasses} artist-tab-btn`; });
+                btn.className = `${baseClasses} ${activeClasses} artist-tab-btn`;
+                updateURLState();
+                renderTable();
+             };
+             tabsContainer.appendChild(btn);
+          });
+          renderTable();
+          updateStatus("Ready", false);
+        } catch (e) {
+          console.error(e);
+          updateStatus("Render Error: " + e.message, true);
+        }
+      }
+
+      function renderTable() {
+        const tbody = document.getElementById('shows-body');
+        tbody.innerHTML = '';
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        const today = new Date();
+        const todayStr = today.toISOString().split('T')[0];
+
+        const filtered = (globalData.shows || []).filter(s => {
+           if (selectedArtistTab !== "All") {
+              const arr = s.artists || [];
+              if (!arr.includes(selectedArtistTab)) return false;
+           }
+           let matchesTime = false;
+           const isFuture = s.date >= todayStr;
+           if (selectedTimeFilters.has('future') && isFuture) matchesTime = true;
+           if (selectedTimeFilters.has('past') && !isFuture) matchesTime = true;
+           return matchesTime;
+        });
+
+        document.getElementById('show-count').innerText = filtered.length;
+        if (filtered.length === 0) { tbody.innerHTML = `<tr><td colspan="16" class="text-center py-4 text-gray-500">No shows found.</td></tr>`; return; }
+
+        filtered.forEach(show => {
+          if (show.lat && show.lng) {
+            const m = L.marker([show.lat, show.lng]).addTo(map);
+            const artistsStr = show.artists.join(", ");
+            const crewList = [...show.ld.map(x=>x+" (LD)"), ...show.lo.map(x=>x+" (LO)"), ...show.pm.map(x=>x+" (PM)"), ...show.se.map(x=>x+" (SE)")].join(", ");
+            
+            const popupContent = `
+              <div class="p-1 space-y-1 min-w-[220px] text-gray-800 dark:text-gray-900 font-sans">
+                <div class="font-bold text-lg">${show.date}</div>
+                <div class="font-semibold text-indigo-600">${artistsStr}</div>
+                <div class="text-sm font-medium">${show.venue || "Unknown Venue"} - ${show.city}</div>
+                <hr class="my-2 border-gray-300"/>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                   ${show.venueUrl ? `<a href="${show.venueUrl}" target="_blank" class="text-blue-600 underline">Venue</a>` : ''}
+                   ${show.ticketsLink ? `<a href="${show.ticketsLink}" target="_blank" class="text-blue-600 underline">Tickets</a>` : ''}
+                   ${show.folderUrl ? `<a href="${show.folderUrl}" target="_blank" class="text-blue-600 underline">Drive</a>` : ''}
+                </div>
+                ${show.stageTime ? `<div class="text-xs text-gray-600 mt-2">Stage: <strong>${show.stageTime}</strong></div>` : ''}
+                ${show.capacity ? `<div class="text-xs text-gray-600 mt-1">Cap: <strong>${show.capacity}</strong></div>` : ''}
+                ${show.setpiece ? `<div class="text-xs text-gray-600 mt-1">Setpiece: <strong>${show.setpiece}</strong></div>` : ''}
+                ${crewList ? `<div class="text-xs mt-2 p-1 bg-gray-100 rounded text-gray-700"><strong>Crew:</strong> ${crewList}</div>` : ''}
+                <div class="mt-2 text-center">
+                   <button onclick="openChecklistSlideOver('${show.checklistId}', '${show.date}', ${show.rowIndex}, ${show.colIndices.checklistCount})" class="px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 transition">Open Checklist</button>
+                </div>
+              </div>`;
+            m.bindPopup(popupContent);
+            markers.push(m);
+          }
+
+          const tr = document.createElement('tr');
+          tr.className = "bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition border-b dark:border-gray-700";
+          let cityDisplay = show.city;
+          if (show.venueUrl) cityDisplay = `<a href="${show.venueUrl}" target="_blank" class="hover:underline text-indigo-600 dark:text-indigo-400 font-medium">${show.city}</a>`;
+          
+          const safeId = (show.id || '').toString().replace(/[^a-zA-Z0-9-_]/g, '_');
+          
+          tr.innerHTML = `
+            <td class="px-4 py-3 align-top font-medium col-nowrap">${show.date}</td>
+            <td class="px-4 py-3 align-top col-wrap"></td> 
+            <td class="px-4 py-3 align-top col-nowrap">${cityDisplay}</td>
+            <td class="px-4 py-3 align-top col-nowrap">${show.venue || '-'}</td>
+            <td class="px-4 py-3 align-top col-nowrap text-gray-600 dark:text-gray-400">${show.country || '-'}</td>
+            <td class="px-4 py-3 align-top col-nowrap"><input type="text" value="${show.stageTime || ''}" class="w-28 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-indigo-500 outline-none text-sm" onchange="updateGeneric(this, ${show.rowIndex}, ${show.colIndices.stageTime})"></td>
+            <td class="px-4 py-3 align-top col-nowrap"><input type="number" value="${show.capacity || ''}" class="w-20 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-indigo-500 outline-none text-sm text-center" onchange="updateGeneric(this, ${show.rowIndex}, ${show.colIndices.capacity})"></td>
+            <td class="px-4 py-3 align-top col-nowrap"><input type="text" value="${show.setpiece || ''}" class="w-24 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-indigo-500 outline-none text-sm text-center" onchange="updateGeneric(this, ${show.rowIndex}, ${show.colIndices.setpiece})"></td>
+            <td class="px-4 py-3 align-top text-center col-nowrap">${renderFileButton(show)}</td>
+            <td class="px-4 py-3 align-top text-center col-nowrap"><button onclick="copyEmail(this, '${show.id}')" class="text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700 shadow transition">Copy Email</button></td>
+            <td class="px-4 py-3 align-top text-center col-nowrap" id="status-cell-${safeId}"></td>
+            <td class="px-4 py-3 align-top w-64">${renderChecklistCell(show)}</td>
+          `;
+          
+          const artistTd = createMultiSelect(show, 'artists', globalData.artistOptions || []);
+          tr.children[1].replaceWith(artistTd);
+          tr.appendChild(createMultiSelect(show, 'ld', globalData.crewOptions["Light Designer"] || []));
+          tr.appendChild(createMultiSelect(show, 'lo', globalData.crewOptions["Light Operator"] || []));
+          tr.appendChild(createMultiSelect(show, 'pm', globalData.crewOptions["Production Manager"] || []));
+          tr.appendChild(createMultiSelect(show, 'se', globalData.crewOptions["Sound Engineer"] || []));
+          
+          const statusCell = tr.querySelector(`#status-cell-${safeId}`);
+          if(statusCell) {
+             const sel = document.createElement('select');
+             const colorClass = STATUS_COLORS[show.status] || STATUS_COLORS["default"];
+             sel.className = `appearance-none text-center text-xs font-bold py-1 px-3 rounded-full border cursor-pointer outline-none transition-colors ${colorClass}`;
+             
+             ["Option", "Confirmed", "To Do", "Waiting", "Done", "Cancelled"].forEach(st => {
+                const opt = document.createElement('option');
+                opt.value = st; opt.innerText = st;
+                if (st === show.status) opt.selected = true;
+                sel.appendChild(opt);
+             });
+             
+             sel.addEventListener('change', (e) => {
+                const val = e.target.value;
+                const newColor = STATUS_COLORS[val] || STATUS_COLORS["default"];
+                sel.className = `appearance-none text-center text-xs font-bold py-1 px-3 rounded-full border cursor-pointer outline-none transition-colors ${newColor}`;
+                google.script.run.updateShowData({ rowIndex: show.rowIndex, colIndex: show.colIndices.status, value: val });
+             });
+             statusCell.appendChild(sel);
+          }
+
+          tbody.appendChild(tr);
+        });
+        if(markers.length > 0) { const g = new L.featureGroup(markers); map.fitBounds(g.getBounds().pad(0.1)); }
+      }
+      
+      function updateGeneric(input, rowIndex, colIndex) {
+         google.script.run.updateShowData({ rowIndex: rowIndex, colIndex: colIndex, value: input.value });
+      }
+      
+      function renderFileButton(show) {
+        if (!show.folderUrl) return `<span class="text-gray-400 text-xs">-</span>`;
+        if (show.fileCount === 0) return `<a href="${show.folderUrl}" target="_blank" class="px-2 py-1 rounded text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-gray-300 transition">0 📁</a>`;
+        return `<a href="${show.folderUrl}" target="_blank" class="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-800 hover:bg-blue-200 border border-blue-200 transition">${show.fileCount} 📁</a>`;
+      }
+      
+      function renderChecklistCell(show) {
+        if (!show.checklistId) return `<span class="text-xs text-gray-400 italic">No Checklist</span>`;
+        const percent = show.checklistTotal > 0 ? (show.checklistChecked / show.checklistTotal) * 100 : 0;
+        
+        let barColor = "bg-blue-600";
+        
+        return `
+          <div class="h-full flex flex-col justify-center cursor-pointer group" onclick="openChecklistSlideOver('${show.checklistId}', '${show.date}', ${show.rowIndex}, ${show.colIndices.checklistCount})">
+            <div class="flex justify-between text-xs mb-1 font-medium text-gray-600 dark:text-gray-300">
+               <span>${Math.round(percent)}%</span>
+               <span>${show.checklistChecked}/${show.checklistTotal}</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden shadow-sm hover:ring-2 hover:ring-indigo-400 transition-all">
+              <div class="h-full rounded-full ${barColor} transition-all duration-500" style="width: ${percent}%"></div>
+            </div>
+          </div>
+        `;
+      }
+
+      function copyEmail(btn, showId) {
+        const show = globalData.shows.find(s => s.id === showId);
+        if (!show) return;
+        if (!show.folderUrl) return alert("No folder URL found.");
+        let template = null;
+        const lowerArtists = show.artists.join(' ').toLowerCase();
+        for (const [artKey, msg] of Object.entries(globalEmailTemplates)) {
+           if (lowerArtists.includes(artKey)) { template = msg; break; }
+        }
+        if (!template) template = globalEmailTemplates["default"] || "Please upload...\n\n[FOLDER_LINK]";
+        const evtDate = new Date(show.date);
+        const deadlineDate = new Date(evtDate);
+        deadlineDate.setDate(evtDate.getDate() - 90);
+        const deadlineStr = deadlineDate.toISOString().split('T')[0];
+        const finalMsg = template.replace('[FOLDER_LINK]', show.folderUrl).replace('[DEADLINE]', deadlineStr);
+        const txt = document.getElementById("copy-area");
+        txt.value = finalMsg;
+        txt.select();
+        document.execCommand('copy');
+        const old = btn.innerText; btn.innerText = "Copied!"; setTimeout(() => btn.innerText = old, 1500);
+      }
+
+      function createMultiSelect(show, field, opts) {
+        const td = document.createElement('td');
+        td.className = "px-4 py-3 align-top col-wrap"; 
+        const container = document.createElement('div'); container.className = "multiselect-dropdown";
+        let currentVals = show[field] || [];
+        const btn = document.createElement('button');
+        btn.className = "multiselect-btn text-gray-700 dark:text-gray-300";
+        const updateBtnText = () => {
+            if (currentVals.length === 0) btn.innerHTML = "<span class='text-gray-400 italic'>Select...</span>";
+            else btn.innerText = currentVals.join(', ');
+        };
+        updateBtnText();
+        btn.onclick = (e) => {
+           e.stopPropagation();
+           document.querySelectorAll('.multiselect-menu').forEach(el => el.classList.remove('show'));
+           menu.classList.toggle('show');
+        };
+        const menu = document.createElement('div'); menu.className = "multiselect-menu";
+        if (opts.length === 0) {
+           const p = document.createElement('div'); p.className = "px-3 py-2 text-xs text-gray-500 italic"; p.innerText = "No options"; menu.appendChild(p);
+        } else {
+           opts.forEach(opt => {
+              const label = document.createElement('label');
+              label.className = "flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer text-xs";
+              const chk = document.createElement('input'); chk.type = "checkbox"; chk.value = opt; chk.className = "mr-2";
+              if(currentVals.includes(opt)) chk.checked = true;
+              chk.onchange = () => {
+                  if(chk.checked) { if(!currentVals.includes(opt)) currentVals.push(opt); } else { currentVals = currentVals.filter(v => v !== opt); }
+                  show[field] = currentVals; updateBtnText();
+                  google.script.run.updateShowData({ rowIndex: show.rowIndex, colIndex: show.colIndices[field], value: currentVals });
+              };
+              label.appendChild(chk); label.appendChild(document.createTextNode(opt)); menu.appendChild(label);
+           });
+        }
+        container.appendChild(btn); container.appendChild(menu); td.appendChild(container); return td;
+      }
+      
+      function openSlideOver() { document.getElementById('slide-over-container').classList.add('slide-open'); }
+      function closeSlideOver() { document.getElementById('slide-over-container').classList.remove('slide-open'); }
+      
+      function openChecklistSlideOver(checklistId, showDate, rowIndex, colIndex) {
+         if (!checklistId || checklistId === "undefined") {
+            alert("No checklist available for this show. Try syncing to create one.");
+            return;
+         }
+         openSlideOver();
+         document.getElementById('slide-content').innerHTML = `<div class="text-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>Loading checklist...</div>`;
+         currentChecklistId = checklistId;
+         currentShowDate = new Date(showDate);
+         currentShowRowIndex = rowIndex;
+         currentShowColIndex = colIndex;
+         google.script.run.withSuccessHandler((items) => {
+             currentChecklistItems = items;
+             renderChecklistItems(currentChecklistItems);
+         }).getChecklistItems(checklistId);
+      }
+      
+      function renderChecklistItems(items) {
+         const container = document.getElementById('slide-content');
+         container.innerHTML = '';
+         if (items.error) { container.innerHTML = `<div class="text-red-500 p-4">Error: ${items.error}</div>`; return; }
+         if (items.length === 0) { container.innerHTML = `<div class="text-gray-500 p-4 text-center">Checklist is empty.</div>`; return; }
+         const today = new Date();
+         items.forEach((item, idx) => {
+            const deadlineDate = new Date(currentShowDate);
+            deadlineDate.setDate(deadlineDate.getDate() - item.deadlineDays);
+            let statusClass = "border-l-4 border-gray-200 dark:border-gray-600";
+            let warningText = "";
+            if (!item.checked) {
+               const timeDiff = deadlineDate - today;
+               const dayDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+               if (today > deadlineDate) {
+                  statusClass = "border-l-4 border-red-500 bg-red-50 dark:bg-red-900/20";
+                  warningText = `<span class="text-red-600 font-bold text-xs">Overdue by ${Math.abs(dayDiff)} days</span>`;
+               } else if (dayDiff <= 7) {
+                  statusClass = "border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20";
+                  warningText = `<span class="text-yellow-600 font-bold text-xs">Due in ${dayDiff} days</span>`;
+               }
+            } else {
+               statusClass = "border-l-4 border-green-500 opacity-50";
+            }
+            const div = document.createElement('div');
+            div.className = `p-3 mb-3 rounded shadow-sm bg-white dark:bg-gray-700 ${statusClass}`;
+            div.innerHTML = `
+              <div class="flex items-start gap-3">
+                 <input type="checkbox" ${item.checked ? 'checked' : ''} class="mt-1 h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
+                 <div class="flex-1">
+                    <div class="font-bold text-sm text-gray-900 dark:text-gray-100">${item.name}</div>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${item.details || item.category || ''}</div>
+                    <div class="mt-2 flex justify-between items-center">
+                       <span class="text-xs text-gray-400">Deadline: ${deadlineDate.toLocaleDateString()}</span>
+                       ${warningText}
+                    </div>
+                 </div>
+              </div>
+            `;
+            div.querySelector('input').addEventListener('change', (e) => {
+               const isChecked = e.target.checked;
+               item.checked = isChecked;
+               currentChecklistItems.sort((a, b) => {
+                  if (a.checked !== b.checked) return a.checked ? 1 : -1;
+                  return b.deadlineDays - a.deadlineDays;
+               });
+               renderChecklistItems(currentChecklistItems);
+               google.script.run.withSuccessHandler((res) => {
+                     if(res.success) {
+                        const [c, t, s] = res.newCount.split(',');
+                        const show = globalData.shows.find(s => s.checklistId === currentChecklistId);
+                        if(show) {
+                           show.checklistChecked = parseInt(c);
+                           show.checklistTotal = parseInt(t);
+                           show.checklistStatus = s; 
+                           renderTable(); 
+                        }
+                     }
+                 }).toggleChecklistItem(currentChecklistId, item.rowIndex, isChecked, currentShowRowIndex, currentShowColIndex);
+            });
+            container.appendChild(div);
+         });
+      }
+    </script>
+  </body>
+</html>

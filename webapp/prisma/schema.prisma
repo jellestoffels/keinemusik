@@ -1,0 +1,156 @@
+// Prisma schema for the Keinemusik Show Production Dashboard
+// Target database: Serverless PostgreSQL (Neon / Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ShowStatus {
+  Option
+  Confirmed
+  ToDo      @map("To Do")
+  Waiting
+  Done
+  Cancelled
+}
+
+/// A single tour show/performance. Mirrors the "shows" sheet from the legacy Apps Script.
+model Show {
+  id      String @id @default(cuid())
+  /// Stable de-duplication key, e.g. ICAL_2025-12-29_me (ported from generateSystemId()).
+  systemId String @unique
+
+  date     DateTime
+  artists  String[]
+  venue    String?
+  city     String?
+  country  String?
+  soldOut  Boolean  @default(false)
+
+  ticketsLink      String?
+  formattedName    String?
+  /// Raw "Venue File Request Email" cell content (instructions text + Drive link).
+  folderEmailRaw   String?
+  folderUrl        String?
+
+  eventName        String?
+  eventUrl         String?
+  performanceTime  String?
+  durationDays     Int?
+  capacity         Int?
+  statusPhase      ShowStatus @default(Option)
+  production       String?
+  doorsOpen        String?
+  doorsClose       String?
+
+  venueStreet      String?
+  venueState       String?
+  venuePostal      String?
+  venueCountryCode String?
+  venuePhone       String?
+  venueUrl         String?
+  venueLat         Float?
+  venueLng         Float?
+  ticketsOnSale    String?
+
+  lightDesigners     String[]
+  lightOperators     String[]
+  productionManagers String[]
+  soundEngineers     String[]
+
+  /// Legacy Drive checklist spreadsheet id, retained for historical reference only.
+  legacyChecklistId String?
+
+  folderFileCount Int @default(0)
+  stageTime       String?
+  setpiece        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  checklistItems ChecklistItem[]
+  logs           Log[]
+
+  @@index([date])
+  @@index([statusPhase])
+}
+
+/// Per-show checklist item (previously a row in a per-show Google Sheet copy).
+model ChecklistItem {
+  id           String  @id @default(cuid())
+  showId       String
+  show         Show    @relation(fields: [showId], references: [id], onDelete: Cascade)
+  name         String
+  category     String?
+  details      String?
+  deadlineDays Int     @default(0)
+  checked      Boolean @default(false)
+  sortOrder    Int     @default(0)
+
+  @@index([showId])
+}
+
+/// Seed template used when a new show is created, keyed by a template name
+/// ("keinemusik", "duo", an individual artist name, or "default").
+model ChecklistTemplateItem {
+  id           String  @id @default(cuid())
+  template     String
+  name         String
+  category     String?
+  details      String?
+  deadlineDays Int     @default(0)
+  sortOrder    Int     @default(0)
+
+  @@index([template])
+}
+
+/// Crew member, ported from the "persons" sheet.
+model Person {
+  id     String   @id @default(cuid())
+  name   String
+  artist String?
+  roles  String[]
+  email  String?
+}
+
+/// Lookup of valid crew role names, ported from the "Roles" sheet.
+model Role {
+  id   String @id @default(cuid())
+  name String @unique
+}
+
+/// Per-artist (or "default"/"duo"/"keinemusik") outbound email copy, ported from "email template" sheet.
+model EmailTemplate {
+  id        String @id @default(cuid())
+  artistKey String @unique
+  message   String
+}
+
+/// Public iCal feed per artist, ported from the "iCalendar" sheet. Used by the sync job.
+model IcalFeed {
+  id         String  @id @default(cuid())
+  artist     String
+  url        String
+  /// Optional Google Calendar calendar id, enables syncing via the googleapis Calendar client
+  /// instead of (or in addition to) fetching the public .ics URL.
+  calendarId String?
+  active     Boolean @default(true)
+}
+
+/// Activity log, ported from the "log" sheet.
+model Log {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  type        String
+  description String
+  showId      String?
+  show        Show?    @relation(fields: [showId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+}
